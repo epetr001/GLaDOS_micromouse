@@ -8,6 +8,7 @@ const int EN = 9;
 const int ENR = 10;
 const int MotorEncoderBuffer = 5;
 
+/* Setup code */
 void setup() {
   Serial.begin(9600);
   pinMode(A_1, OUTPUT);
