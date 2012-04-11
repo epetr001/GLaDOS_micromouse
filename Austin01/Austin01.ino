@@ -17,9 +17,10 @@ const int BackRight = 4;
 boolean Moving = false;
 boolean LineUpComplete = false;
 int MotorSpeed = 100;    //0 - 255 (0 = minimum, 255 = maximum)
-int DistanceTravelled = 0;
-int SquareLength = 160;
-int SlowDownDelay = 60;
+int DistanceTravelled = 0;    //Used to count the distance the mouse has travelled when moving a square
+int SquareLength = 160;       //The number of ticks representing 1 maze square
+int SlowDownDelay = 60;       //This delay makes it so that the motors are completely stopped before doing something else (needs tweaking)
+int RightMotorDelay = 150;    //This delay makes it so the motors stop together (needs tweaking) <- is there a better way of doing this?
 //===================Sensor Data=========================
 int IRFrontRight = 0;
 int IRBackRight = 0;
@@ -47,9 +48,9 @@ void setup() {
 
 void loop()
 {
-  LineUp();
-  delay(10000);
-  TravelASquare();
+  LineUp();        //First line up
+  delay(1000);
+  TravelASquare();  //Then move 1 square
   delay(1000000);
 }
 
@@ -57,19 +58,20 @@ void TravelASquare()
 {
   Moving = true;
   DistanceTravelled = 0;
-  analogWrite(ENR, MotorSpeed);
+  analogWrite(ENR, MotorSpeed);    //Turn on both motors
   analogWrite(EN, MotorSpeed);
   while (DistanceTravelled < SquareLength)
   {
-    DistanceTravelled = (TickL + TickR) / 2;
+    DistanceTravelled = (TickL + TickR) / 2;  //This only works once!!!!!!!!!!!!!!!!!!!! needs to be changed to work multiple times!
     Serial.print("Distance: ");
     Serial.println(DistanceTravelled);
-    CorrectStraightness();
+    CorrectStraightness();                    //While moving, keep the robot driving straight
   }
   Moving = false;
-  digitalWrite(ENR, LOW);
-  digitalWrite(EN, LOW);
-  delay(SlowDownDelay);
+  digitalWrite(ENR, LOW);    //Turn off the right motor
+  delay(RightMotorDelay);    //Wait
+  digitalWrite(EN, LOW);     //Now turn off the left motor
+  delay(SlowDownDelay);      //Deceleration
 }
 
 void LineUp()
@@ -78,7 +80,7 @@ void LineUp()
   
   //Add these numbers to the front sensor value and you should get the back sensor value IF THE SIDE IS STRAIGHT
   int RightStraightOffset = 0;
-  int LeftStraightOffset = -60;
+  int LeftStraightOffset = -70;
 
   while (!LineUpComplete)
   {
@@ -94,7 +96,7 @@ void LineUp()
       Serial.println("Turned CCW, Rotate CW");
       analogWrite(EN, MotorSpeed);
       digitalWrite(ENR, LOW);
-      delay(10);
+      delay(10);      //Lowering this will make is more precise, but take more time
       digitalWrite(EN, LOW);
       digitalWrite(ENR, LOW);
       delay(SlowDownDelay);
@@ -104,7 +106,7 @@ void LineUp()
       Serial.println("Turned CW, Rotate CCW");
       digitalWrite(EN, LOW);
       analogWrite(ENR, MotorSpeed);
-      delay(10);
+      delay(10);      //Lowering this will make is more precise, but take more time
       digitalWrite(EN, LOW);
       digitalWrite(ENR, LOW);
       delay(SlowDownDelay);
@@ -119,13 +121,13 @@ void LineUp()
 
 boolean CorrectStraightness()
 {
-  if (TickR > TickL + 5)
+  if (TickR > TickL + 5)    //If the right motor is ahead of the left
   {
     digitalWrite(ENR, LOW);
     analogWrite(EN, MotorSpeed);
     return true;
   }
-  else if (TickL > TickR + 5)
+  else if (TickL > TickR + 5)  //If the left motor is ahead of the right
   {
     digitalWrite(EN, LOW);
     analogWrite(ENR, MotorSpeed);
@@ -133,14 +135,14 @@ boolean CorrectStraightness()
   }
   else
   {
-    if (Moving)
+    if (Moving)    //Both motors are in sync
     {
-      analogWrite(EN, MotorSpeed);
+      analogWrite(EN, MotorSpeed);  //If you were previously moving, stay moving
       analogWrite(ENR, MotorSpeed);
     }
     else
     {
-      digitalWrite(EN, LOW);
+      digitalWrite(EN, LOW);        //If you were previously moving, stop moving
       digitalWrite(ENR, LOW); 
     }
     return false;
