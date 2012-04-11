@@ -13,30 +13,22 @@ const int FrontLeft = 1;
 const int FrontRight = 2;
 const int BackLeft = 3;
 const int BackRight = 4;
-const int MAXPOWER = 50;
-
 //=====================Logic Variables==================
-const int MotorEncoderBuffer = 5;
-boolean StraightCorrecting = false;
-boolean SwerveCorrecting = false;
-int LeftTrackFile[5];
-int RightTrackFile[5];
-int LeftTrackIndex = 0;
-int RightTrackIndex = 0;
-
-//===================Sensor Offsets======================
-const int FROffset = 0;
-const int BROffset = 50;
-const int FLOffset = 0;
-const int BLOffset = 20;
-
+boolean Moving = false;
+boolean LineUpComplete = false;
+boolean Centered = true;
+int MotorSpeed = 100; //0 - 255 (0 = minimum, 255 = maximum)
+int DistanceTravelled = 0; //Used to count the distance the mouse has travelled when moving a square
+int SquareLength = 160; //The number of ticks representing 1 maze square
+int SlowDownDelay = 60; //This delay makes it so that the motors are completely stopped before doing something else (needs tweaking)
+int RightMotorDelay = 150; //This delay makes it so the motors stop together (needs tweaking) <- is there a better way of doing this?
 //===================Sensor Data=========================
-int IRserialRF = 0;
-int IRserialRB = 0;
-int IRserialLF = 0;
-int IRserialLB = 0;
-int IRserialF = 0;
-/* Setup code */
+int IRFrontRight = 0;
+int IRBackRight = 0;
+int IRFrontLeft = 0;
+int IRBackLeft = 0;
+int IRFront = 0;
+//===================Setup Function=======================
 void setup() {
   Serial.begin(9600);
   pinMode(A_1, OUTPUT);
@@ -45,8 +37,8 @@ void setup() {
   pinMode(ENR, OUTPUT);
   pinMode(A_3, OUTPUT);
   pinMode(A_4, OUTPUT);
-  analogWrite(EN, MAXPOWER);
-  analogWrite(ENR, MAXPOWER);
+  digitalWrite(EN, LOW);
+  digitalWrite(ENR, LOW);
   attachInterrupt(0,TickRInt, CHANGE);
   attachInterrupt(1,TickLInt, CHANGE);
   digitalWrite(A_1, HIGH);
@@ -56,135 +48,169 @@ void setup() {
 }
 
 void loop()
-{   
-
-  IRserialF = analogRead(Front);
-  IRserialRF = analogRead(FrontRight);
-  IRserialRB = analogRead(BackRight);
-  IRserialLF = analogRead(FrontLeft);
-  IRserialLB = analogRead(BackLeft);
-  if (IRserialF < 800)
+{
+  if(IsCentered())
   {
-    TurnRight();
-    
-  }
-  
-  if (SwerveCorrecting == false)
-  {
-    if (TickR > TickL)
-    {
-      digitalWrite(ENR, LOW);
-      analogWrite(EN, MAXPOWER);
-      StraightCorrecting = true;
-    }
-    else if (TickL > TickR)
-    {
-      digitalWrite(EN, LOW);
-      analogWrite(ENR, MAXPOWER);
-      StraightCorrecting = true;
-    }
-    else
-    {
-      analogWrite(EN, MAXPOWER);
-      analogWrite(ENR, MAXPOWER);
-      StraightCorrecting = false;
-    }
-  }
-
-/*
-  if (((IRserialRB + BROffset) - (IRserialRF + FROffset)) > 50)  //Check if the mouse is swerving to the right
-  {
-    digitalWrite(EN, LOW);
-    analogWrite(ENR, MAXPOWER);
-    SwerveCorrecting = true;
-  }
-  else if (((IRserialLB + BLOffset) - (IRserialLF + FLOffset)) > 50)
-  {
-    analogWrite(EN, MAXPOWER);
-    digitalWrite(ENR, LOW);
-    SwerveCorrecting = true;
+    LineUp(); //First line up
+    delay(1000);
+    TravelASquare(); //Then move 1 square
+    delay(1000);
+    IsCentered();
   }
   else
   {
-    if (StraightCorrecting == false)
-    {
-      analogWrite(EN, MAXPOWER);
-      analogWrite(ENR, MAXPOWER);
-    }
-    if (SwerveCorrecting == true)
-    {
-      TickR = 0;
-      TickL = 0; 
-    }
-    SwerveCorrecting = false;
+    MoveToCenter();
+    delay(1000);
+    TravelASquare();
+    delay(1000);
+    LineUp();
+    delay(1000);
   }
-  */
 }
 
+void TravelASquare()
+{
+  Moving = true;
+  DistanceTravelled = 0;
+  analogWrite(ENR, MotorSpeed); //Turn on both motors
+  analogWrite(EN, MotorSpeed);
+  while (DistanceTravelled < SquareLength)
+  {
+    DistanceTravelled = (TickL + TickR) / 2; //This only works once!!!!!!!!!!!!!!!!!!!! needs to be changed to work multiple times!
+    Serial.print("Distance: ");
+    Serial.println(DistanceTravelled);
+    CorrectStraightness(); //While moving, keep the robot driving straight
+  }
+  Moving = false;
+  digitalWrite(ENR, LOW); //Turn off the right motor
+  delay(RightMotorDelay); //Wait
+  digitalWrite(EN, LOW); //Now turn off the left motor
+  delay(SlowDownDelay); //Deceleration
+}
+
+void LineUp()
+{
+  LineUpComplete = false;
+  
+  //Add these numbers to the front sensor value and you should get the back sensor value IF THE SIDE IS STRAIGHT
+  int RightStraightOffset = 0;
+  int LeftStraightOffset = -70;
+
+  while (!LineUpComplete)
+  {
+    IRFront = analogRead(Front);
+    IRFrontRight = analogRead(FrontRight);
+    IRBackRight = analogRead(BackRight);
+    IRFrontLeft = analogRead(FrontLeft);
+    IRBackLeft = analogRead(BackLeft);
+
+    int LeftError = IRFrontLeft + LeftStraightOffset - IRBackLeft;
+    if (LeftError < -10) //Robot is turned counter-clockwise
+    {
+      Serial.println("Turned CCW, Rotate CW");
+      analogWrite(EN, MotorSpeed);
+      digitalWrite(ENR, LOW);
+      delay(10); //Lowering this will make is more precise, but take more time
+      digitalWrite(EN, LOW);
+      digitalWrite(ENR, LOW);
+      delay(SlowDownDelay);
+    }
+    else if (LeftError > 10) //Robot is turned clockwise
+    {
+      Serial.println("Turned CW, Rotate CCW");
+      digitalWrite(EN, LOW);
+      analogWrite(ENR, MotorSpeed);
+      delay(10); //Lowering this will make is more precise, but take more time
+      digitalWrite(EN, LOW);
+      digitalWrite(ENR, LOW);
+      delay(SlowDownDelay);
+    }
+    else //Robot is straight
+    {
+      Serial.println("Robot is straight.");
+      LineUpComplete = true;
+      TickR = 0;//JERRY: THIS LINE ALLOWS THE ROBOT TO CONTINUE CORRECTING AND MOVING
+      TickL = 0;
+    }
+  }
+}
+
+boolean CorrectStraightness()
+{
+  if (TickR > TickL + 5) //If the right motor is ahead of the left
+  {
+    digitalWrite(ENR, LOW);
+    analogWrite(EN, MotorSpeed);
+    return true;
+  }
+  else if (TickL > TickR + 5) //If the left motor is ahead of the right
+  {
+    digitalWrite(EN, LOW);
+    analogWrite(ENR, MotorSpeed);
+    return true;
+  }
+  else
+  {
+    if (Moving) //Both motors are in sync
+    {
+      analogWrite(EN, MotorSpeed); //If you were previously moving, stay moving
+      analogWrite(ENR, MotorSpeed);
+    }
+    else
+    {
+      digitalWrite(EN, LOW); //If you were previously moving, stop moving
+      digitalWrite(ENR, LOW);
+    }
+    return false;
+  }
+}
+
+boolean IsCentered()
+{
+  if( ((IRFrontLeft + IRBackLeft) - (IRFrontRight + IRBackRight)) > 70 || (IRFrontRight + IRBackRight) - (IRFrontLeft + IRBackLeft) > 70)
+ {
+   return false;
+ }
+else
+   return true;
+}
+
+void MoveToCenter()
+{
+  if((IRFrontLeft + IRBackLeft) < (IRFrontRight + IRBackRight))
+ {
+   while((TickL - 20)> TickR)
+   {
+     analogWrite(EN,MotorSpeed);
+     digitalWrite(ENR,LOW); 
+   }
+   TickL = 0;
+   TickR = 0;
+   
+ } 
+ else if((IRFrontLeft + IRBackLeft) > (IRBackRight+ IRFrontRight))
+ {
+   while((TickR - 20) > TickL)
+   {
+     analogWrite(ENR,MotorSpeed);
+     digitalWrite(EN,LOW);  
+   }
+   TickL = 0;
+   TickR = 0;
+ } 
+else
+   return;
+  
+}
+//====================Interrupts=========================
 void TickRInt()
 {
-  
   TickR++;
   return;
 }
-
 void TickLInt()
 {
   TickL++;
   return;
 }
-void ScootLeft()
-{
-   analogWrite(ENR, MAXPOWER);
-   digitalWrite(EN, LOW);
-   delay(200);
-   TickR = 0;
-   TickL = 0; 
-}
-void ScootRight()
-{
-   digitalWrite(ENR, LOW);
-   analogWrite(EN, MAXPOWER);
-   delay(200);
-   TickR = 0;
-   TickL = 0; 
-}
-void TurnRight()
-{   
-    digitalWrite(EN,LOW);
-    digitalWrite(ENR,LOW);
-    delay(60);
-    TickR = 0;
-    TickL = 0;
-    
-    Serial.print("L: ");
-    Serial.println(TickL);
-    Serial.print("R: ");
-    Serial.println(TickR);
-    while(TickR < 90 && TickL < 85)
-    {
-      if(TickR >= 90){
-         digitalWrite(A_3,HIGH);
-         digitalWrite(A_4,HIGH);}
-      else{
-        digitalWrite(A_3,LOW);
-        digitalWrite(A_4,HIGH);
-        analogWrite(ENR, MAXPOWER);}
-      
-      if(TickL >= 85){
-        digitalWrite(A_2,HIGH);
-        digitalWrite(A_1,HIGH);}
-      else{
-        digitalWrite(A_2,LOW);
-        digitalWrite(A_1,HIGH);
-        analogWrite(EN, MAXPOWER);}
-    } 
-    delay(60);
-    TickR = 0;
-    TickL = 0;
-    digitalWrite(A_1, HIGH);
-    digitalWrite(A_2, LOW);
-    digitalWrite(A_3, HIGH);
-    digitalWrite(A_4, LOW);
-   
-}
+//=======================================================
