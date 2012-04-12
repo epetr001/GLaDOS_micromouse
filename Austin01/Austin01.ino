@@ -51,14 +51,16 @@ void loop()
 {
   if(IsCentered())
   {
+    Serial.println("Robot Is Centered");
     LineUp(); //First line up
     delay(1000);
     TravelASquare(); //Then move 1 square
     delay(1000);
-    IsCentered();
+    //IsCentered(); //*****************************This isn't needed!?
   }
   else
   {
+    Serial.println("Robot is not centered");
     MoveToCenter();
     delay(1000);
     TravelASquare();
@@ -66,6 +68,7 @@ void loop()
     LineUp();
     delay(1000);
   }
+  delay(5000);
 }
 
 void TravelASquare()
@@ -168,39 +171,37 @@ boolean CorrectStraightness()
 boolean IsCentered()
 {
   if( ((IRFrontLeft + IRBackLeft) - (IRFrontRight + IRBackRight)) > 70 || (IRFrontRight + IRBackRight) - (IRFrontLeft + IRBackLeft) > 70)
- {
-   return false;
- }
-else
-   return true;
+  {
+    return false;
+  }
+  else
+    return true;
 }
 
 void MoveToCenter()
 {
-  if((IRFrontLeft + IRBackLeft) < (IRFrontRight + IRBackRight))
- {
-   while((TickL - 20)> TickR)
-   {
-     analogWrite(EN,MotorSpeed);
-     digitalWrite(ENR,LOW); 
-   }
-   TickL = 0;
-   TickR = 0;
-   
- } 
- else if((IRFrontLeft + IRBackLeft) > (IRBackRight+ IRFrontRight))
- {
-   while((TickR - 20) > TickL)
-   {
-     analogWrite(ENR,MotorSpeed);
-     digitalWrite(EN,LOW);  
-   }
-   TickL = 0;
-   TickR = 0;
- } 
-else
-   return;
-  
+  if((IRFrontLeft + IRBackLeft) / 2 < (IRFrontRight + IRBackRight) / 2)
+  {
+    while((TickL - 20) > TickR)
+    {
+      analogWrite(EN, MotorSpeed);
+      digitalWrite(ENR, LOW);
+    }
+    TickL = 0;
+    TickR = 0;   
+  }
+  else if((IRFrontLeft + IRBackLeft) / 2 > (IRBackRight+ IRFrontRight) / 2)
+  {
+    while((TickR - 20) > TickL)
+    {
+      analogWrite(ENR, MotorSpeed);
+      digitalWrite(EN, LOW);  
+    }
+    TickL = 0;
+    TickR = 0;
+  }
+  digitalWrite(EN, LOW);
+  digitalWrite(ENR, LOW);  
 }
 //====================Interrupts=========================
 void TickRInt()
