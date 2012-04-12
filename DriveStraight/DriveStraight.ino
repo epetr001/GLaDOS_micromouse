@@ -67,7 +67,7 @@ void loop()
   }
 }
 
-void TravelASquare()
+/*void TravelASquare()    //This only works if the ticks are reset before being called. (use later is current function breaks program)
 {
  
   Moving = true;
@@ -82,6 +82,30 @@ void TravelASquare()
   digitalWrite(ENR, LOW);
   digitalWrite(EN, LOW);
   Moving = false;
+}*/
+
+void TravelASquare()
+{
+  Moving = true;
+  int OriginalDistance = TickL;
+  analogWrite(ENR, MotorSpeed); //Turn on both motors
+  analogWrite(EN, MotorSpeed);
+  while (DistanceTravelled < OriginalDistance + SquareLength)  //Check if distance travelled is over a threshold
+  {
+    DistanceTravelled = TickL;
+  }
+  OutputTicks();
+  digitalWrite(ENR, LOW);
+  digitalWrite(EN, LOW);
+  Moving = false;
+}
+
+void OutputTicks()
+{
+  Serial.print("L: ");
+  Serial.println(TickL);
+  Serial.print("R: ");
+  Serial.println(TickR);
 }
 
 void LineUp()
@@ -176,6 +200,35 @@ void LineUp()
     } 
    }
   }
+}
+
+void TurnRight()
+{
+  //Set motors to turn (right/left)
+  digitalWrite(A_1, HIGH);
+  digitalWrite(A_2, LOW);
+  digitalWrite(A_3, LOW);
+  digitalWrite(A_4, HIGH);
+  
+  Moving = true;
+  int OriginalDistance = TickL;  //Save the current TickL
+  analogWrite(ENR, MotorSpeed); //Turn on both motors
+  analogWrite(EN, MotorSpeed);
+  while (DistanceTravelled < OriginalDistance + 40)    //Check if distance travelled is over a threshold
+  {
+    DistanceTravelled = TickL;
+  }
+  OutputTicks();
+  digitalWrite(ENR, LOW);
+  digitalWrite(EN, LOW);
+  
+  //Reset motor to normal direction
+  digitalWrite(A_1, HIGH);
+  digitalWrite(A_2, LOW);
+  digitalWrite(A_3, HIGH);
+  digitalWrite(A_4, LOW);
+  
+  Moving = false;
 }
 
 void CorrectStraightness()
