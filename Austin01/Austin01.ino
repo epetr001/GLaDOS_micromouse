@@ -16,11 +16,12 @@ const int BackRight = 4;
 //=====================Logic Variables==================
 boolean Moving = false;
 boolean LineUpComplete = false;
-int MotorSpeed = 100;    //0 - 255 (0 = minimum, 255 = maximum)
-int DistanceTravelled = 0;    //Used to count the distance the mouse has travelled when moving a square
-int SquareLength = 160;       //The number of ticks representing 1 maze square
-int SlowDownDelay = 60;       //This delay makes it so that the motors are completely stopped before doing something else (needs tweaking)
-int RightMotorDelay = 150;    //This delay makes it so the motors stop together (needs tweaking) <- is there a better way of doing this?
+boolean Centered = true;
+int MotorSpeed = 100; //0 - 255 (0 = minimum, 255 = maximum)
+int DistanceTravelled = 0; //Used to count the distance the mouse has travelled when moving a square
+int SquareLength = 160; //The number of ticks representing 1 maze square
+int SlowDownDelay = 60; //This delay makes it so that the motors are completely stopped before doing something else (needs tweaking)
+int RightMotorDelay = 150; //This delay makes it so the motors stop together (needs tweaking) <- is there a better way of doing this?
 //===================Sensor Data=========================
 int IRFrontRight = 0;
 int IRBackRight = 0;
@@ -48,30 +49,43 @@ void setup() {
 
 void loop()
 {
-  LineUp();        //First line up
-  delay(1000);
-  TravelASquare();  //Then move 1 square
-  delay(1000000);
+  if(IsCentered())
+  {
+    LineUp(); //First line up
+    delay(1000);
+    TravelASquare(); //Then move 1 square
+    delay(1000);
+    IsCentered();
+  }
+  else
+  {
+    MoveToCenter();
+    delay(1000);
+    TravelASquare();
+    delay(1000);
+    LineUp();
+    delay(1000);
+  }
 }
 
 void TravelASquare()
 {
   Moving = true;
   DistanceTravelled = 0;
-  analogWrite(ENR, MotorSpeed);    //Turn on both motors
+  analogWrite(ENR, MotorSpeed); //Turn on both motors
   analogWrite(EN, MotorSpeed);
   while (DistanceTravelled < SquareLength)
   {
-    DistanceTravelled = (TickL + TickR) / 2;  //This only works once!!!!!!!!!!!!!!!!!!!! needs to be changed to work multiple times!
+    DistanceTravelled = (TickL + TickR) / 2; //This only works once!!!!!!!!!!!!!!!!!!!! needs to be changed to work multiple times!
     Serial.print("Distance: ");
     Serial.println(DistanceTravelled);
-    CorrectStraightness();                    //While moving, keep the robot driving straight
+    CorrectStraightness(); //While moving, keep the robot driving straight
   }
   Moving = false;
-  digitalWrite(ENR, LOW);    //Turn off the right motor
-  delay(RightMotorDelay);    //Wait
-  digitalWrite(EN, LOW);     //Now turn off the left motor
-  delay(SlowDownDelay);      //Deceleration
+  digitalWrite(ENR, LOW); //Turn off the right motor
+  delay(RightMotorDelay); //Wait
+  digitalWrite(EN, LOW); //Now turn off the left motor
+  delay(SlowDownDelay); //Deceleration
 }
 
 void LineUp()
@@ -91,43 +105,45 @@ void LineUp()
     IRBackLeft = analogRead(BackLeft);
 
     int LeftError = IRFrontLeft + LeftStraightOffset - IRBackLeft;
-    if (LeftError < -10)	//Robot is turned counter-clockwise
+    if (LeftError < -10) //Robot is turned counter-clockwise
     {
       Serial.println("Turned CCW, Rotate CW");
       analogWrite(EN, MotorSpeed);
       digitalWrite(ENR, LOW);
-      delay(10);      //Lowering this will make is more precise, but take more time
+      delay(10); //Lowering this will make is more precise, but take more time
       digitalWrite(EN, LOW);
       digitalWrite(ENR, LOW);
       delay(SlowDownDelay);
     }
-    else if (LeftError > 10)	//Robot is turned clockwise
+    else if (LeftError > 10) //Robot is turned clockwise
     {
       Serial.println("Turned CW, Rotate CCW");
       digitalWrite(EN, LOW);
       analogWrite(ENR, MotorSpeed);
-      delay(10);      //Lowering this will make is more precise, but take more time
+      delay(10); //Lowering this will make is more precise, but take more time
       digitalWrite(EN, LOW);
       digitalWrite(ENR, LOW);
       delay(SlowDownDelay);
     }
-    else	//Robot is straight
+    else //Robot is straight
     {
       Serial.println("Robot is straight.");
       LineUpComplete = true;
+      TickR = 0;//JERRY: THIS LINE ALLOWS THE ROBOT TO CONTINUE CORRECTING AND MOVING
+      TickL = 0;
     }
   }
 }
 
 boolean CorrectStraightness()
 {
-  if (TickR > TickL + 5)    //If the right motor is ahead of the left
+  if (TickR > TickL + 5) //If the right motor is ahead of the left
   {
     digitalWrite(ENR, LOW);
     analogWrite(EN, MotorSpeed);
     return true;
   }
-  else if (TickL > TickR + 5)  //If the left motor is ahead of the right
+  else if (TickL > TickR + 5) //If the left motor is ahead of the right
   {
     digitalWrite(EN, LOW);
     analogWrite(ENR, MotorSpeed);
@@ -135,20 +151,57 @@ boolean CorrectStraightness()
   }
   else
   {
-    if (Moving)    //Both motors are in sync
+    if (Moving) //Both motors are in sync
     {
-      analogWrite(EN, MotorSpeed);  //If you were previously moving, stay moving
+      analogWrite(EN, MotorSpeed); //If you were previously moving, stay moving
       analogWrite(ENR, MotorSpeed);
     }
     else
     {
-      digitalWrite(EN, LOW);        //If you were previously moving, stop moving
-      digitalWrite(ENR, LOW); 
+      digitalWrite(EN, LOW); //If you were previously moving, stop moving
+      digitalWrite(ENR, LOW);
     }
     return false;
   }
 }
 
+boolean IsCentered()
+{
+  if( ((IRFrontLeft + IRBackLeft) - (IRFrontRight + IRBackRight)) > 70 || (IRFrontRight + IRBackRight) - (IRFrontLeft + IRBackLeft) > 70)
+ {
+   return false;
+ }
+else
+   return true;
+}
+
+void MoveToCenter()
+{
+  if((IRFrontLeft + IRBackLeft) < (IRFrontRight + IRBackRight))
+ {
+   while((TickL - 20)> TickR)
+   {
+     analogWrite(EN,MotorSpeed);
+     digitalWrite(ENR,LOW); 
+   }
+   TickL = 0;
+   TickR = 0;
+   
+ } 
+ else if((IRFrontLeft + IRBackLeft) > (IRBackRight+ IRFrontRight))
+ {
+   while((TickR - 20) > TickL)
+   {
+     analogWrite(ENR,MotorSpeed);
+     digitalWrite(EN,LOW);  
+   }
+   TickL = 0;
+   TickR = 0;
+ } 
+else
+   return;
+  
+}
 //====================Interrupts=========================
 void TickRInt()
 {
@@ -161,4 +214,3 @@ void TickLInt()
   return;
 }
 //=======================================================
-
